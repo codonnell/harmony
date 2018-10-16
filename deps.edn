@@ -1,0 +1,5 @@
+{:deps
+ {org.clojure/clojure {:mvn/version "1.10.0-RC1"}
+  stylefruits/gniazdo {:mvn/version "1.0.1"}
+  clj-http            {:mvn/version "3.9.1"}
+  cheshire            {:mvn/version "5.8.0"}}}
