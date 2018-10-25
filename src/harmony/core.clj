@@ -1,5 +1,6 @@
 (ns harmony.core
   (:require [harmony.http :as http]
+            [harmony.util :as util]
             [cheshire.core :as json])
   (:import [java.util.concurrent Executors TimeUnit]))
 
@@ -25,7 +26,7 @@
 (defmethod handle-system-message 10
   [{:keys [state executor] :as gateway} {:keys [d]}]
   (println "Starting heartbeat from" d)
-  (let [heartbeat-interval (:heartbeat_interval d)
+  (let [heartbeat-interval (:heartbeat-interval d)
         {:keys [heartbeat-future]} @state]
     (when (and heartbeat-future (not (.isCancelled heartbeat-future)))
       (.cancel heartbeat-future true))
@@ -51,20 +52,18 @@
     (send-heartbeat! ws-client seq-num)))
 
 (defmethod handle-system-message 0
-  [{:keys [state]} {:keys [s t d]}]
+  [{:keys [state on-event]} {:keys [s t d] :as event}]
   (println "Setting seq num" s)
   (swap! state
          #(cond-> %
             true (assoc :seq-num s)
-            (= "READY" t) (assoc :session-id (:session_id d)))))
+            (= "READY" t) (assoc :session-id (:session-id d))))
+  (on-event event))
 
 (defmethod handle-system-message 11
   [{:keys [state]} _]
   (println "Received heartbeat ack")
   (swap! state assoc :heartbeat-acked? true))
-
-(defn decode-body [body]
-  (json/decode body true))
 
 ;; Leaving out other options here for now
 (defn identify-body [{:keys [token os browser device]
@@ -89,20 +88,20 @@
 
 (defn resume-body [{:keys [token session-id seq-num]}]
   {:token token
-   :session_id session-id
+   :session-id session-id
    :seq seq-num})
 
 (defn send-resume! [ws-client config]
   (http/send-json ws-client (resume-body config)))
 
-(defn- connect!*
+(defn- ws-connect!
   "Given a disconnected gateway, makes a websocket connection and returns the
   gateway."
   [{:keys [http-client url token state] :as gateway}]
   (let [ws-client (http/ws-connect http-client
                                    url
-                                   {:on-receive #(let [json (json/decode % true)]
-                                                   (println "Received message:" json)
+                                   {:on-receive #(let [json (util/parse-json %)]
+                                                   (prn "Received message:" json)
                                                    (handle-system-message gateway json))
                                     :on-close (fn [status reason]
                                                 (println "Disconnected:" gateway status reason)
@@ -111,15 +110,28 @@
     (swap! state assoc :ws-client ws-client)
     gateway))
 
-(defrecord Gateway [state token url http-client]
+(defn request-gateway-url
+  "Requests a websocket url from the bot gateway endpoint and returns it."
+  [{:keys [token http-client]}]
+  (let [headers {"Authorization" (str "Bot " token)}
+        endpoint "/gateway/bot"]
+    (-> http-client
+        (http/GET (str base-url endpoint) {:headers headers})
+        (update :body util/parse-json)
+        (get-in [:body :url])
+        (str "/?v=6&encoding=json"))))
+
+(defrecord Gateway [state token url http-client on-event]
   Connection
   (connect! [this]
-    (connect!* this)
-    (send-identify! (:ws-client @state) token)
-    this)
+    (let [url (request-gateway-url this)
+          new-gateway (assoc this :url url)]
+      (ws-connect! new-gateway)
+      (send-identify! (:ws-client @state) token)
+      new-gateway))
   (reconnect! [this]
     (http/close (:ws-client @state))
-    (let [{:keys [session-id seq-num ws-client]} (connect!* this)]
+    (let [{:keys [session-id seq-num ws-client]} (ws-connect! this)]
       (send-resume! ws-client {:session-id session-id
                                :seq-num seq-num
                                :token token})
@@ -130,21 +142,9 @@
       (http/close (:ws-client @state)))
     (assoc this :state (atom {}))))
 
-(defn request-gateway
-  "Given a token and an optional http client (see harmony.http), returns a
-  Gateway record."
-  ([token]
-   (request-gateway http/client token))
-  ([client token]
-   (let [headers {"Authorization" (str "Bot " token)}
-         endpoint "/gateway/bot"
-         full-url (-> client
-                      (http/GET (str base-url endpoint) {:headers headers})
-                      (update :body decode-body)
-                      (get-in [:body :url])
-                      (str "/?v=6&encoding=json"))]
-     (map->Gateway {:url full-url
-                    :token token
-                    :http-client client
-                    :state (atom {})
-                    :executor (Executors/newScheduledThreadPool 1)}))))
+(defn init-gateway [{:keys [token http-client executor] :as opts}]
+  (map->Gateway
+   (cond-> (merge {:http-client http/client
+                   :state (atom {})}
+                  opts)
+     (nil? executor) (assoc :executor (Executors/newScheduledThreadPool 1)))))

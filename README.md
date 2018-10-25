@@ -21,9 +21,9 @@ for the user as possible.
 (def rest-client (rest/map->Client {:auth "abcd"}))
 
 (defn on-event [event]
-  (when (and (= :message-create (:type event))
-             (= "!ping" (:content event)))
-    (rest/create-message! rest-client {:channel-id (:channel-id event)
+  (when (and (= "MESSAGE_CREATE" (:t event))
+             (= "!ping" (get-in event [:d :content])))
+    (rest/create-message! rest-client {:channel-id (get-in event [:d :channel-id])
                                        :content "pong!"})))
 
 (def gateway (gateway/connect! (gateway/map->Gateway {:auth "abcd"
