@@ -104,10 +104,10 @@
                                    {:on-receive #(let [json (json/decode % true)]
                                                    (println "Received message:" json)
                                                    (handle-system-message gateway json))
-                                    :on-close #(do
-                                                 (println "Disconnected:" gateway)
-                                                 (when-not (:disconnect? @state)
-                                                   (reconnect! gateway)))})]
+                                    :on-close (fn [status reason]
+                                                (println "Disconnected:" gateway status reason)
+                                                (when-not (:disconnect? @state)
+                                                  (reconnect! gateway)))})]
     (swap! state assoc :ws-client ws-client)
     gateway))
 
