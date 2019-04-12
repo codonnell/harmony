@@ -33,7 +33,9 @@
   (send-message [this message]
     (ws/send-msg websocket message))
   (send-json [this json]
-    (ws/send-msg websocket (json/encode json)))
+    (let [msg (json/encode json)]
+      (println "Sending message" msg)
+      (ws/send-msg websocket (json/encode json))))
   (close [this]
     (ws/close websocket)))
 
