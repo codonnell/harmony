@@ -1,6 +1,7 @@
 (ns harmony.core
   (:require [harmony.http :as http]
             [harmony.util :as util]
+            [harmony.rest :as rest]
             [cheshire.core :as json])
   (:import [java.util.concurrent Executors TimeUnit]))
 
@@ -166,7 +167,7 @@
           (swap! state dissoc ::reconnect-delay)
           this)
         (catch Throwable e
-          (println e)
+          (println "Error reconnecting" e)
           (let [{::keys [reconnect-delay]} (swap! state update ::reconnect-delay
                                                   (fnil #(min (* % 2) (* 1000 60 5)) 250))]
             (println "Reconnect failed. Attempting to reconnect again in " reconnect-delay " milliseconds.")
@@ -184,3 +185,19 @@
                    :on-event (constantly nil)}
                   opts)
      (nil? executor) (assoc :executor (Executors/newScheduledThreadPool 1)))))
+
+(defrecord Bot [gateway rest-client]
+  Connection
+  (connect! [this]
+    (update this :gateway connect!))
+  (reconnect! [this]
+    (update this :gateway reconnect!))
+  (disconnect! [this]
+    (update this :gateway disconnect!)))
+
+(defn init-bot [{:keys [token gateway rest-client] :as opts}]
+  (map->Bot (merge {:gateway (init-gateway {:token token})
+                    :rest-client (rest/map->Client {:token token
+                                                    :state (atom nil)
+                                                    :http-client http/client})}
+                   (dissoc opts :token))))

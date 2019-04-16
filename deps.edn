@@ -1,5 +1,9 @@
 {:deps
- {org.clojure/clojure {:mvn/version "1.10.0-RC1"}
+ {org.clojure/clojure {:mvn/version "1.10.0"}
   stylefruits/gniazdo {:mvn/version "1.0.1"}
   clj-http            {:mvn/version "3.9.1"}
-  cheshire            {:mvn/version "5.8.0"}}}
+  cheshire            {:mvn/version "5.8.0"}}
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                                          :sha "028a6d41ac9ac5d5c405dfc38e4da6b4cc1255d5"}}
+                  :main-opts ["-m" "cognitect.test-runner"]}}}

@@ -1,3 +1,41 @@
+# Gateway Connection
+
+Pluggable connection and reconnection control with sensible defaults.
+
+## Operation
+
+### Initialize Connection
+
+1. Request gateway url via a REST call
+2. Establish websocket connection to that url
+3. Send identify message
+
+### Reconnect After Websocket Disconnected
+
+1. Reestablish websocket connection to gateway url
+3. Send resume message
+4. If we receive an invalid session message, wait 1-5 seconds and send identify message
+
+### Disconnect
+
+1. Stop sending heartbeats
+2. Disconnect websocket connection
+
+## API Options
+
+Prefer to give control to the user. Perhaps provide an automatic reconnect (with
+exponential backoff?) by default.
+
+## Implementation
+
+Simplest solution is probably to expose an `on-close` function to the user,
+which takes the gateway as a single param and takes care of its own stuff. For
+example, an exponential backoff implementation could assoc any data it needs
+into the gateway state map under a namespaced keyword and use the gateway's
+`connect!`, `reconnect!`, and `disconnect!` methods.
+
+The system should handle canceling heartbeats.
+
 # Rate Limiting
 
 Prefer to be unopinionated, but still want avoiding rate limit violations to be convenient.
