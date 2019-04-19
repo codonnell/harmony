@@ -1,5 +1,6 @@
 (ns harmony.util
   (:require [clojure.string :as str]
+            [clojure.walk :as walk]
             [cheshire.core :as json]))
 
 (defn- ->keybab [s]
@@ -11,15 +12,17 @@
   [m]
   (into {} (map (fn [[k v]] [(->keybab k) v])) m))
 
+(defn- transform-keys
+  "Recursively transforms all map keys in coll with t."
+  [t coll]
+  (letfn [(transform [[k v]] [(t k) v])]
+    (walk/postwalk (fn [x] (if (map? x) (into {} (map transform) x) x)) coll)))
+
 (defn deep-keybabulate
   "Takes a possibly nested map with string, snake-cased keys and returns that map
   with its keys and all keys of nested maps as kebab-cased keywords."
   [m]
-  (into {}
-        (map (fn [[k v]]
-               [(->keybab k)
-                (if (map? v) (deep-keybabulate v) v)]))
-        m))
+  (transform-keys ->keybab m))
 
 (defn parse-json
   "Parses and `deep-keybabulate`s a json-encoded string."
@@ -39,11 +42,7 @@
   "Takes a possibly nested map with keyword, kebab-cased keys and returns that map
   with its keys and all keys of nested maps as snake-cased strings."
   [m]
-  (into {}
-        (map (fn [[k v]]
-               [(keybab->snake k)
-                (if (map? v) (deep-snakeulate v) v)]))
-        m))
+  (transform-keys keybab->snake m))
 
 (defn encode-json
   "JSON serializes and `deep-snakeulate`'s a clojure map"
