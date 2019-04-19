@@ -71,7 +71,10 @@
          #(cond-> %
             true (assoc :seq-num s)
             (= "READY" t) (assoc :session-id (:session-id d))))
-  (on-event event))
+  (try (when on-event
+         (on-event event))
+       (catch Throwable e
+         (println "Error processing event" {:event event :error e}))))
 
 (defmethod handle-system-message (op-codes :heartbeat-ack)
   [{:keys [state]} _]
@@ -186,7 +189,7 @@
                   opts)
      (nil? executor) (assoc :executor (Executors/newScheduledThreadPool 1)))))
 
-(defrecord Bot [gateway rest-client]
+(defrecord Bot [gateway rest-client on-event]
   Connection
   (connect! [this]
     (update this :gateway connect!))
@@ -195,9 +198,11 @@
   (disconnect! [this]
     (update this :gateway disconnect!)))
 
-(defn init-bot [{:keys [token gateway rest-client] :as opts}]
-  (map->Bot (merge {:gateway (init-gateway {:token token})
-                    :rest-client (rest/map->Client {:token token
-                                                    :state (atom nil)
-                                                    :http-client http/client})}
-                   (dissoc opts :token))))
+(defn init-bot [{:keys [token on-event gateway rest-client] :as opts}]
+  (let [bot (map->Bot (merge {:gateway (init-gateway {:token token})
+                              :rest-client (rest/map->Client {:token token
+                                                              :state (atom nil)
+                                                              :http-client http/client})}
+                             (dissoc opts :token)))]
+    (cond-> bot
+      on-event (assoc-in [:gateway :on-event] (partial on-event bot)))))
