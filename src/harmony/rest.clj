@@ -84,3 +84,13 @@
                                                 :content-type "application/json")
                                 :body (util/encode-json {:content message
                                                          :tts false})})))
+
+(defn create-dm-channel! [{:keys [http-client token]} user-id]
+  (let [url (str base-url "/" (resolve-path ["users" "@me" "channels"]))]
+    (http/POST http-client url {:headers (assoc (auth-headers token)
+                                                :content-type "application/json")
+                                :body (util/encode-json {:recipient-id user-id})})))
+
+(defn create-dm! [rest-client user-id message]
+  (let [channel-id (-> rest-client (create-dm-channel! user-id) :body util/parse-json :id)]
+    (create-message! rest-client channel-id message)))
