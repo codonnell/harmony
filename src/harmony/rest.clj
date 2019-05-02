@@ -85,11 +85,18 @@
                                 :body (util/encode-json {:content message
                                                          :tts false})})))
 
+(def user-id->dm-channel-id (atom {}))
+
 (defn create-dm-channel! [{:keys [http-client token]} user-id]
-  (let [url (str base-url "/" (resolve-path ["users" "@me" "channels"]))]
-    (http/POST http-client url {:headers (assoc (auth-headers token)
-                                                :content-type "application/json")
-                                :body (util/encode-json {:recipient-id user-id})})))
+  (if-let [channel-id (@user-id->dm-channel-id user-id)]
+    channel-id
+    (let [url (str base-url "/" (resolve-path ["users" "@me" "channels"]))
+          response (http/POST http-client url {:headers (assoc (auth-headers token)
+                                                               :content-type "application/json")
+                                               :body (util/encode-json {:recipient-id user-id})})]
+      (when (< (:status response) 400)
+        (swap! user-id->dm-channel-id assoc user-id (-> response :body util/parse-json :id)))
+      response)))
 
 (defn create-dm! [rest-client user-id message]
   (let [channel-id (-> rest-client (create-dm-channel! user-id) :body util/parse-json :id)]
