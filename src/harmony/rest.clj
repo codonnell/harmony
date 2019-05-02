@@ -95,9 +95,9 @@
                                                                :content-type "application/json")
                                                :body (util/encode-json {:recipient-id user-id})})]
       (when (< (:status response) 400)
-        (swap! user-id->dm-channel-id assoc user-id (-> response :body util/parse-json :id)))
-      response)))
+        (get (swap! user-id->dm-channel-id assoc user-id (-> response :body util/parse-json :id))
+             user-id)))))
 
 (defn create-dm! [rest-client user-id message]
-  (let [channel-id (-> rest-client (create-dm-channel! user-id) :body util/parse-json :id)]
+  (let [channel-id (create-dm-channel! rest-client user-id)]
     (create-message! rest-client channel-id message)))
