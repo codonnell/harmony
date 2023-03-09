@@ -5,7 +5,7 @@
             [cheshire.core :as json])
   (:import [java.util.concurrent Executors TimeUnit]))
 
-(def base-url "https://discordapp.com/api/v6")
+(def base-url "https://discord.com/api/v10")
 
 (def op-codes {:dispatch 0
                :heartbeat 1
